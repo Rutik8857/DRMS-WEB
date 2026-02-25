@@ -147,19 +147,119 @@ exports.signup = async (req, res) => {
 
 
 
+// exports.login = async (req, res) => {
+//   try {
+//     console.log("🔹 LOGIN REQUEST:", req.body);
+
+//     const { email, password } = req.body;
+
+//     if (!email || !password) {
+//       return res.status(400).json({ error: "Email and password required" });
+//     }
+
+//     const cleanEmail = email.trim().toLowerCase();
+
+//     // 1️⃣ Check users table
+//     const [rows] = await db.query(
+//       "SELECT * FROM users WHERE email=?",
+//       [cleanEmail]
+//     );
+
+//     if (rows.length === 0) {
+//       return res.status(401).json({ error: "Invalid credentials" });
+//     }
+
+//     const user = rows[0];
+//     const userRole = user.role.toLowerCase();
+
+//     console.log(`✅ User found: ID=${user.id}, Role=${userRole}`);
+
+//     // 2️⃣ Check password
+//     const match = await bcrypt.compare(password, user.password);
+//     if (!match) {
+//       return res.status(401).json({ error: "Invalid credentials" });
+//     }
+
+//     let doctorData = null;
+//     let patientData = null;
+
+//     // ================= DOCTOR LOGIN =================
+//     if (userRole === "doctor") {
+//       console.log("🔍 Checking doctor table...");
+
+//       const [docRows] = await db.query(
+//         "SELECT * FROM doctors WHERE user_id=?",
+//         [user.id]
+//       );
+
+//       if (docRows.length === 0) {
+//         return res.status(403).json({
+//           error: "Doctor not found in doctors table"
+//         });
+//       }
+
+//       doctorData = docRows[0];
+//       console.log("✅ Doctor verified");
+//     }
+
+//     // ================= PATIENT LOGIN =================
+//     if (userRole === "patient") {
+//       const [patRows] = await db.query(
+//         "SELECT * FROM patients WHERE user_id=?",
+//         [user.id]
+//       );
+
+//       if (patRows.length === 0) {
+//         return res.status(403).json({
+//           error: "Patient profile missing"
+//         });
+//       }
+
+//       patientData = patRows[0];
+//     }
+
+//     // ================= ADMIN LOGIN =================
+//     // Admin only needs users table
+//     if (userRole === "admin") {
+//       console.log("✅ Admin login");
+//     }
+
+//     // 4️⃣ Generate token
+//     const token = jwt.sign(
+//       { id: user.id, role: userRole },
+//       "secretkey",
+//       { expiresIn: "1d" }
+//     );
+
+//     res.json({
+//       message: `${userRole} login success`,
+//       role: userRole,
+//       token,
+//       user: {
+//         id: user.id,
+//         name: user.name,
+//         email: user.email,
+//         role: userRole
+//       },
+//       doctor: doctorData,
+//       patient: patientData
+//     });
+
+//   } catch (err) {
+//     console.error("LOGIN ERROR:", err);
+//     res.status(500).json({ error: "Login failed" });
+//   }
+// };
+
+
+
 exports.login = async (req, res) => {
   try {
-    console.log("🔹 LOGIN REQUEST:", req.body);
-
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
-    }
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // 1️⃣ Check users table
+    // users table check
     const [rows] = await db.query(
       "SELECT * FROM users WHERE email=?",
       [cleanEmail]
@@ -170,83 +270,49 @@ exports.login = async (req, res) => {
     }
 
     const user = rows[0];
-    const userRole = user.role.toLowerCase();
+    const role = user.role.toLowerCase();
 
-    console.log(`✅ User found: ID=${user.id}, Role=${userRole}`);
-
-    // 2️⃣ Check password
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    let doctorData = null;
-    let patientData = null;
+    let doctorProfile = null;
 
-    // ================= DOCTOR LOGIN =================
-    if (userRole === "doctor") {
-      console.log("🔍 Checking doctor table...");
-
-      const [docRows] = await db.query(
+    // ================= DOCTOR =================
+    if (role === "doctor") {
+      const [doc] = await db.query(
         "SELECT * FROM doctors WHERE user_id=?",
         [user.id]
       );
 
-      if (docRows.length === 0) {
-        return res.status(403).json({
-          error: "Doctor not found in doctors table"
-        });
+      if (doc.length === 0) {
+        return res.status(403).json({ error: "Doctor profile missing" });
       }
 
-      doctorData = docRows[0];
-      console.log("✅ Doctor verified");
+      doctorProfile = doc[0];
     }
 
-    // ================= PATIENT LOGIN =================
-    if (userRole === "patient") {
-      const [patRows] = await db.query(
-        "SELECT * FROM patients WHERE user_id=?",
-        [user.id]
-      );
-
-      if (patRows.length === 0) {
-        return res.status(403).json({
-          error: "Patient profile missing"
-        });
-      }
-
-      patientData = patRows[0];
-    }
-
-    // ================= ADMIN LOGIN =================
-    // Admin only needs users table
-    if (userRole === "admin") {
-      console.log("✅ Admin login");
-    }
-
-    // 4️⃣ Generate token
+    // ================= TOKEN =================
     const token = jwt.sign(
-      { id: user.id, role: userRole },
+      {
+        id: user.id,        // user id
+        role: role,
+        doctorId: doctorProfile ? doctorProfile.id : null
+      },
       "secretkey",
       { expiresIn: "1d" }
     );
 
     res.json({
-      message: `${userRole} login success`,
-      role: userRole,
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: userRole
-      },
-      doctor: doctorData,
-      patient: patientData
+      role,
+      user,
+      doctor: doctorProfile
     });
 
   } catch (err) {
-    console.error("LOGIN ERROR:", err);
+    console.log(err);
     res.status(500).json({ error: "Login failed" });
   }
 };

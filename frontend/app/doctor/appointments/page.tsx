@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 
 // Define a type for your appointment for better TS support
 interface Appointment {
-  _id: string; // MongoDB typically uses _id
-  patient: string; 
+  id: number;
+  patientName: string;
   date: string;
   time: string;
   status: string;
@@ -29,8 +29,10 @@ export default function AppointmentsPage() {
   : "";
 
   // 1. Fetch Data from Backend
-  useEffect(() => {
-  if (!doctorId) {
+useEffect(() => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
     setLoading(false);
     return;
   }
@@ -38,8 +40,14 @@ export default function AppointmentsPage() {
   const fetchAppointments = async () => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/appointments/doctor/${doctorId}`
+        "http://localhost:5000/api/appointments/my",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
       );
+
       const data = await res.json();
       setAppointments(data);
     } catch (err) {
@@ -50,34 +58,59 @@ export default function AppointmentsPage() {
   };
 
   fetchAppointments();
-}, [doctorId]);
+}, []);
 
 
 
   console.log("doctorId:", doctorId);
 
   // 2. Update Status in Backend
-  const updateStatus = async (id: string, newStatus: string) => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/appointments/status/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
+  // const updateStatus = async (id: string, newStatus: string) => {
+  //   try {
+  //     const response = await fetch(`http://localhost:5000/api/appointments/status/${id}`, {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ status: newStatus }),
+  //     });
 
-      if (response.ok) {
-        setAppointments(prev => 
-          prev.map(app => app._id === id ? { ...app, status: newStatus } : app)
-        );
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
+  //     if (response.ok) {
+  //       setAppointments(prev => 
+  //         prev.map(app => app.id === id ? { ...app, status: newStatus } : app)
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.error("Error updating status:", error);
+  //   }
+  // };
+
+
+  const updateStatus = async (id: number, newStatus: string) => {
+  const token = localStorage.getItem("token");
+
+  const response = await fetch(
+    `http://localhost:5000/api/appointments/status/${id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ status: newStatus }),
     }
-  };
+  );
+
+  if (response.ok) {
+    setAppointments(prev =>
+      prev.map(app =>
+        app.id === id ? { ...app, status: newStatus } : app
+      )
+    );
+  }
+};
 
   // 3. Filter Logic (Search)
   const filteredAppointments = appointments.filter(app =>
-    app.patient.toLowerCase().includes(searchTerm.toLowerCase())
+   (app.patientName || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin" /></div>;
@@ -119,9 +152,9 @@ export default function AppointmentsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredAppointments.map((app) => (
-              <tr key={app._id} className="hover:bg-slate-50 transition-colors group text-sm">
+              <tr key={app.id} className="hover:bg-slate-50 transition-colors group text-sm">
                 <td className="px-6 py-4">
-                  <div className="font-bold text-slate-800">{app.patient}</div>
+                  <div className="font-bold text-slate-800">{app.patientName}</div>
                   <div className="text-xs text-slate-500 font-medium">{app.type}</div>
                 </td>
                 <td className="px-6 py-4">
@@ -143,16 +176,16 @@ export default function AppointmentsPage() {
                   <div className="flex items-center justify-end gap-2">
                     {app.status === "Pending" && (
                       <>
-                        <button onClick={() => updateStatus(app._id, "Approved")} className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-all">
+                        <button onClick={() => updateStatus(app.id, "Approved")} className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-all">
                           <Check className="w-4 h-4" />
                         </button>
-                        <button onClick={() => updateStatus(app._id, "Rejected")} className="p-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-all">
+                        <button onClick={() => updateStatus(app.id, "Rejected")} className="p-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-all">
                           <X className="w-4 h-4" />
                         </button>
                       </>
                     )}
                     {app.status === "Approved" && (
-                      <button onClick={() => updateStatus(app._id, "Completed")} className="text-xs font-bold px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg transition-all">
+                      <button onClick={() => updateStatus(app.id, "Completed")} className="text-xs font-bold px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg transition-all">
                         Complete
                       </button>
                     )}

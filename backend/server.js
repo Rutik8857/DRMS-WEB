@@ -142,6 +142,7 @@ const authRoutes = require("./routes/authRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const scheduleRoutes = require("./routes/scheduleRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -157,7 +158,18 @@ const io = new Server(server, {
 });
 
 // Middleware
-app.use(cors());
+// app.use(cors());
+
+app.use(cors({
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
+}));
+
+
+
+
 app.use(express.json());
 
 // Routes
@@ -168,23 +180,20 @@ app.use("/api/auth", authRoutes);
 app.use("/api", reportRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/messages", messageRoutes);
+
+
+app.use("/api/schedule", scheduleRoutes);
 // 🔥 SOCKET CONNECTION
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  // Join room
+  // Join specific chat room
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
-    console.log("Joined room:", roomId);
   });
 
-  // Send message
+  // Broadcast message to everyone in the room
   socket.on("sendMessage", (data) => {
+    // data: { roomId, sender, message }
     io.to(data.roomId).emit("receiveMessage", data);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected");
   });
 });
 

@@ -19,6 +19,7 @@ const navItems = [
   { name: 'Appointments', href: '/admin/appointments', icon: Calendar },
   { name: 'Doctors', href: '/admin/doctors', icon: UserRound },
   { name: 'Users', href: '/admin/users', icon: Users },
+  { name: 'Chat', href: '/admin/chat', icon: 'chat' }, // Placeholder, replace with actual icon
 ];
 
 export function AdminSidebar() {

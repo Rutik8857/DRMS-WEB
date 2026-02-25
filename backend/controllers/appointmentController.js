@@ -94,3 +94,26 @@ exports.updateStatus = async (req, res) => {
 
   res.json({ message: "updated" });
 };
+
+
+
+
+exports.getMyAppointments = async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({ error: "Not doctor" });
+    }
+
+    const doctorId = req.user.doctorId;
+
+    const [rows] = await db.query(
+      "SELECT * FROM appointments WHERE doctorId=? ORDER BY id DESC",
+      [doctorId]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
