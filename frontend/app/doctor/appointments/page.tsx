@@ -189,6 +189,11 @@ useEffect(() => {
                         Complete
                       </button>
                     )}
+                    {app.status === "Completed" && (
+                      <a href={`/doctor/prescriptions?appointmentId=${app.id}&patientName=${encodeURIComponent(app.patientName)}`} className="text-xs font-bold px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-all">
+                        Prescribe
+                      </a>
+                    )}
                     <button className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-all">
                       <Eye className="w-4 h-4" />
                     </button>

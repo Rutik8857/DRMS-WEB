@@ -17,9 +17,9 @@ import { cn } from "@/lib/utils"; // Standard Shadcn utility
 const navItems = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { name: 'Appointments', href: '/admin/appointments', icon: Calendar },
-  { name: 'Doctors', href: '/admin/doctors', icon: UserRound },
-  { name: 'Users', href: '/admin/users', icon: Users },
-  { name: 'Chat', href: '/admin/chat', icon: 'chat' }, // Placeholder, replace with actual icon
+  { name: 'Doctors', href: '/admin/doctors', icon: Users },
+  { name: 'Admins', href: '/admin/users', icon: UserRound },
+  // { name: 'Chat', href: '/admin/chat', icon: 'chat' }, // Placeholder, replace with actual icon
 ];
 
 export function AdminSidebar() {

@@ -6,23 +6,56 @@ import { io } from "socket.io-client";
 import axios from "axios";
 import { cn } from "@/lib/utils";
 
-// Connect to socket once
-const socket = io("http://localhost:5000");
+// create socket but don't auto connect until token set
+const socket = io("http://localhost:5000", { autoConnect: false });
+
+// types
+interface Patient {
+  id: number;
+  name: string;
+  role?: string;
+  online?: boolean;
+  unread?: number;
+}
+
+interface ChatMessage {
+  roomId?: string;
+  sender: string;
+  message: string;
+}
 
 export default function ChatPage() {
-  const doctorId = 1; // Logged-in Doctor ID
-  const [activePatient, setActivePatient] = useState<any>(null);
+  // determine logged in doctor id from localStorage
+  let doctorId = 0;
+  if (typeof window !== 'undefined') {
+    doctorId = parseInt(localStorage.getItem('doctorId') || '0');
+    if (!doctorId) {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload?.doctorId) doctorId = payload.doctorId;
+        }
+      } catch {};
+    }
+  }
+  const [activePatient, setActivePatient] = useState<Patient | null>(null);
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Example list (In production, fetch this from your API)
-  const patients = [
-    { id: 101, name: "Rushikesh", role: "patient", online: true },
-    // { id: 102, name: "Yash", role: "patient", online: false },
-    // { id: 50, name: "Admin Support", role: "admin", online: true },
-  ];
+  // load chat list dynamically when component mounts
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    axios.get('http://localhost:5000/api/chats/my', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        setPatients(res.data.map((c: any) => ({ id: c.patient_id, name: c.patientName || c.name, unread: c.unread || 0 })));
+      })
+      .catch(console.error);
+  }, []);
 
   // Logic: Create a consistent Room ID (e.g., room_1_101)
   const getRoomId = (otherId: number) => {
@@ -39,6 +72,12 @@ export default function ChatPage() {
   useEffect(() => {
     if (!activePatient) return;
 
+    const token = localStorage.getItem('token');
+    if (token && !socket.connected) {
+      socket.auth = { token };
+      socket.connect();
+    }
+
     const roomId = getRoomId(activePatient.id);
     setLoading(true);
 
@@ -46,7 +85,7 @@ export default function ChatPage() {
     socket.emit("joinRoom", roomId);
 
     // 2. Load History from DB
-    axios.get(`http://localhost:5000/api/messages/${roomId}`)
+    axios.get(`http://localhost:5000/api/messages/${roomId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then((res) => {
         setMessages(res.data);
         setLoading(false);
@@ -61,6 +100,26 @@ export default function ChatPage() {
     };
 
     socket.on("receiveMessage", handleReceive);
+
+    // update unread count if message is for another patient
+    const handleNew = (data: any) => {
+      if (data.roomId === roomId) return; // current chat already shows
+      // parse other id
+      const parts = data.roomId.split('_');
+      if (parts.length === 3) {
+        const ids = [parseInt(parts[1]), parseInt(parts[2])];
+        const other = ids.find(i => i !== doctorId);
+        if (other) {
+          setPatients(prev => prev.map(p => {
+            if (p.id === other) {
+              return { ...p, unread: (p.unread || 0) + 1 };
+            }
+            return p;
+          }));
+        }
+      }
+    };
+    socket.on("receiveMessage", handleNew);
 
     // Cleanup when switching chats
     return () => {
@@ -85,7 +144,7 @@ export default function ChatPage() {
 
     // Save to Database (Persistence)
     try {
-      await axios.post("http://localhost:5000/api/messages/send", data);
+      await axios.post("http://localhost:5000/api/messages/send", data, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
     } catch (err) {
       console.error("DB Save Error:", err);
     }
@@ -106,10 +165,13 @@ export default function ChatPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {patients.map((p) => (
+          {patients.map((p: Patient) => (
             <button
               key={p.id}
-              onClick={() => setActivePatient(p)}
+              onClick={() => {
+                setActivePatient(p);
+                setPatients(prev => prev.map(q => q.id === p.id ? { ...q, unread: 0 } : q));
+              }}
               className={cn(
                 "w-full p-4 flex gap-3 border-b transition-all",
                 activePatient?.id === p.id ? "bg-blue-50 border-r-4 border-blue-600" : "hover:bg-white"
@@ -121,7 +183,9 @@ export default function ChatPage() {
               <div className="text-left flex-1">
                 <div className="flex justify-between">
                   <p className="font-bold text-sm text-slate-800">{p.name}</p>
-                  <span className="text-[9px] text-slate-400 uppercase font-bold">{p.role}</span>
+                  {(p.unread || 0) > 0 && (
+                    <span className="text-xs bg-red-500 text-white rounded-full px-2">{p.unread}</span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500 truncate">Click to chat</p>
               </div>

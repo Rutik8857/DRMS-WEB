@@ -6,25 +6,57 @@ import { io } from "socket.io-client";
 import axios from "axios";
 import { cn } from "@/lib/utils";
 
-const socket = io("http://localhost:5000");
+// init socket after token is available
+const socket = io("http://localhost:5000", {
+  autoConnect: false,
+});
+
+interface Doctor {
+  id: number;
+  name: string;
+  unread?: number;
+}
+
+interface ChatMessage {
+  sender: string;
+  message: string;
+  roomId?: string;
+}
+
 
 export default function PatientChatPage() {
-  const patientId = 101; // 🔥 Logged-in Patient ID
-  const [activeDoctor, setActiveDoctor] = useState<any>(null);
+  // retrieve stored ids from localStorage
+  let patientId = 0;
+  if (typeof window !== 'undefined') {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        patientId = payload?.id || 0;
+      }
+    } catch {}
+  }
+  const [activeDoctor, setActiveDoctor] = useState<Doctor | null>(null);
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Patient ke liye Doctors ki list
-  const doctors = [
-    { id: 1, name: "Dr. Smith", specialization: "Cardiologist" },
-    { id: 5, name: "Dr. Khanna", specialization: "General Physician" },
-    { id: 50, name: "Support Admin", specialization: "Help Desk" },
-  ];
+  // load chat list for patient
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    axios.get('http://localhost:5000/api/chats/my', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        // server returns items with doctorId and doctorName
+        setDoctors(res.data.map(c => ({ id: c.doctor_id, name: c.doctorName, unread: c.unread || 0 })));
+      })
+      .catch(console.error);
+  }, []);
 
   // Room ID logic wahi rahegi (sorting important hai taaki dono same room mein milein)
-  const getRoomId = (docId: number) => {
+  const getRoomId = (docId) => {
     const ids = [patientId, docId].sort((a, b) => a - b);
     return `room_${ids[0]}_${ids[1]}`;
   };
@@ -36,12 +68,18 @@ export default function PatientChatPage() {
   useEffect(() => {
     if (!activeDoctor) return;
 
+    const token = localStorage.getItem('token');
+    if (token && !socket.connected) {
+      socket.auth = { token };
+      socket.connect();
+    }
+
     const roomId = getRoomId(activeDoctor.id);
     setLoading(true);
 
     socket.emit("joinRoom", roomId);
 
-    axios.get(`http://localhost:5000/api/messages/${roomId}`)
+    axios.get(`http://localhost:5000/api/messages/${roomId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then((res) => {
         setMessages(res.data);
         setLoading(false);
@@ -50,6 +88,21 @@ export default function PatientChatPage() {
     const handleMsg = (data: any) => {
       if (data.roomId === roomId) {
         setMessages((prev) => [...prev, data]);
+      } else {
+        // increment unread for doctor not in current chat
+        const parts = data.roomId.split('_');
+        if (parts.length === 3) {
+          const ids = [parseInt(parts[1]), parseInt(parts[2])];
+          const other = ids.find(i => i !== patientId);
+          if (other) {
+            setDoctors(prev => prev.map(d => {
+              if (d.id === other) {
+                return { ...d, unread: (d.unread || 0) + 1 };
+              }
+              return d;
+            }));
+          }
+        }
       }
     };
 
@@ -64,12 +117,14 @@ export default function PatientChatPage() {
     const roomId = getRoomId(activeDoctor.id);
     const data = {
       roomId,
-      sender: "patient", // 🔥 Ab sender "patient" hai
+      sender: "patient",
       message: message.trim(),
     };
 
+    const token = localStorage.getItem('token');
+
     socket.emit("sendMessage", data);
-    await axios.post("http://localhost:5000/api/messages/send", data);
+    await axios.post("http://localhost:5000/api/messages/send", data, { headers: { Authorization: `Bearer ${token}` } });
     setMessage("");
   };
 
@@ -81,11 +136,18 @@ export default function PatientChatPage() {
         {doctors.map((d) => (
           <button 
             key={d.id} 
-            onClick={() => setActiveDoctor(d)}
+            onClick={() => {
+              setActiveDoctor(d);
+              setDoctors(prev => prev.map(p => p.id === d.id ? { ...p, unread: 0 } : p));
+            }}
             className={cn("w-full p-4 text-left border-b", activeDoctor?.id === d.id && "bg-blue-100")}
           >
-            <p className="font-bold text-sm">{d.name}</p>
-            <p className="text-xs text-slate-50">{d.specialization}</p>
+            <div className="flex justify-between">
+              <p className="font-bold text-sm">{d.name}</p>
+              {d.unread > 0 && (
+                <span className="text-xs bg-red-500 text-white rounded-full px-2">{d.unread}</span>
+              )}
+            </div>
           </button>
         ))}
       </div>

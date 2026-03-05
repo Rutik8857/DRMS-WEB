@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const appointmentController = require("../controllers/appointmentController");
-const auth = require("../middleware/auth");
+const { verifyToken, verifyDoctor } = require("../middleware/auth.middleware");
 // ➜ SEND REQUEST
 router.post("/send", appointmentController.sendRequest);
 
@@ -21,6 +21,6 @@ router.put("/status/:id", appointmentController.updateStatus);
 
 
 router.get("/all", appointmentController.getAllRequests);
-router.get("/my", auth, appointmentController.getMyAppointments);
+router.get("/my", verifyToken, verifyDoctor, appointmentController.getMyAppointments);
 
 module.exports = router;

@@ -1,0 +1,3 @@
+-- migration originally added chat_id/read_by_recipient columns.
+-- superseded by 2026_fix_messages_schema.sql which handles schema correctly
+-- kept here for history; do not execute.

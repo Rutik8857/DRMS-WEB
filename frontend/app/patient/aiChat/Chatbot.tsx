@@ -24,9 +24,11 @@ const getFallbackReply = (text: string, lang: string): string => {
 };
 
 const Chatbot = () => {
-  const [messages, setMessages] = useState([
-    { id: 1, text: "Hello! I am your AI Health Assistant. How can I help you today?", sender: 'bot' }
-  ]);
+  const [messages, setMessages] = useState([{
+    id: 1,
+    text: "Hello! I am your AI Health Assistant. How can I help you today?",
+    sender: 'bot'
+  }]);
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +44,36 @@ const Chatbot = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // fetch history once on mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch('http://localhost:5000/api/chat/history?limit=50', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.data)) {
+            // flatten interleaved by using created_at order
+            const msgs: any[] = [];
+            data.data.forEach((h: any) => {
+              msgs.push({ id: `${h.id}-u`, text: h.message, sender: 'user', ts: new Date(h.created_at).getTime() });
+              msgs.push({ id: `${h.id}-b`, text: h.response, sender: 'bot', ts: new Date(h.created_at).getTime() + 1 });
+            });
+            msgs.sort((a,b) => a.ts - b.ts);
+            const hist = msgs.map(m => ({ id: m.id, text: m.text, sender: m.sender }));
+            setMessages(prev => [...hist, ...prev]);
+          }
+        }
+      } catch (e) {
+        console.warn('AI history fetch failed', e);
+      }
+    };
+    fetchHistory();
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -141,37 +173,73 @@ const Chatbot = () => {
   };
 
   // --- SEND MESSAGE ---
-  const handleSend = async (textOverride?: string) => {
-    const textToSend = textOverride || input;
-    if (!textToSend.trim()) return;
+  // const handleSend = async (textOverride?: string) => {
+  //   const textToSend = textOverride || input;
+  //   if (!textToSend.trim()) return;
 
-    // 1. User Message
-    setMessages(prev => [...prev, { id: Date.now(), text: textToSend, sender: 'user' }]);
-    setInput("");
-    setIsLoading(true);
-    stopSpeaking();
+  //   // 1. User Message
+  //   setMessages(prev => [...prev, { id: Date.now(), text: textToSend, sender: 'user' }]);
+  //   setInput("");
+  //   setIsLoading(true);
+  //   stopSpeaking();
 
-    try {
-        // 2. Call Backend with Language
-        const response = await fetch('http://localhost:5000/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              message: textToSend,
-              language: language // Send current language ('en' or 'hi')
-            })
-        });
+  //   try {
+  //       // 2. Call Backend with Language
+  //       const response = await fetch('http://localhost:5000/api/chat', {
+  //           method: 'POST',
+  //           headers: { 'Content-Type': 'application/json' },
+  //           body: JSON.stringify({ 
+  //             message: textToSend,
+  //             language: language // Send current language ('en' or 'hi')
+  //           })
+  //       });
         
-        const data = await response.json();
-        simulateTypingEffect(data.reply);
+  //       const data = await response.json();
+  //       simulateTypingEffect(data.reply);
 
-    } catch (error) {
-        console.error("Error:", error);
-        // Fallback
-        const fallback = getFallbackReply(textToSend, language);
-        simulateTypingEffect(fallback);
-    }
-  };
+  //   } catch (error) {
+  //       console.error("Error:", error);
+  //       // Fallback
+  //       const fallback = getFallbackReply(textToSend, language);
+  //       simulateTypingEffect(fallback);
+  //   }
+  // };
+
+  const handleSend = async (textOverride?: string) => {
+  const textToSend = textOverride || input;
+  if (!textToSend.trim()) return;
+
+  setMessages(prev => [...prev, { id: Date.now(), text: textToSend, sender: 'user' }]);
+  setInput("");
+  setIsLoading(true);
+  stopSpeaking();
+
+  try {
+
+    const token = localStorage.getItem("token");
+
+    const response = await fetch('http://localhost:5000/api/chat', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`   // ✅ FIX
+      },
+      body: JSON.stringify({ 
+        message: textToSend,
+        language: language
+      })
+    });
+
+    const data = await response.json();
+
+    simulateTypingEffect(data.reply);
+
+  } catch (error) {
+    console.error("Error:", error);
+    const fallback = getFallbackReply(textToSend, language);
+    simulateTypingEffect(fallback);
+  }
+};
 
   return (
     <div className="max-w-3xl mx-auto h-[calc(100vh-80px)] flex flex-col bg-gray-50 border-x border-gray-200">

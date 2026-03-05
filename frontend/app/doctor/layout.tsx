@@ -19,7 +19,8 @@ const sidebarLinks = [
   { name: "Dashboard", href: "/doctor/dashboard", icon: LayoutDashboard },
   { name: "Appointments", href: "/doctor/appointments", icon: CalendarCheck },
   { name: "Schedule", href: "/doctor/schedule", icon: Clock },
-  { name: "Chat", href: "/doctor/chat", icon: MessageSquare },
+  // { name: "Chat", href: "/doctor/chat", icon: MessageSquare },
+  { name: "Prescriptions", href: "/doctor/prescriptions", icon: User },
 ];
 
 export default function DoctorLayout({

@@ -5,17 +5,35 @@ exports.sendRequest = async (req, res) => {
   try {
     const { doctorId, patientName, patientEmail } = req.body;
 
+    if (!doctorId || !patientEmail) {
+      return res.status(400).json({ message: "doctorId and patientEmail required" });
+    }
+
+    // 🔥 Find patient from users table
+    const [users] = await db.query(
+      "SELECT id FROM users WHERE email=? AND role='patient'",
+      [patientEmail]
+    );
+
+    if (users.length === 0) {
+      return res.status(400).json({ message: "Patient not registered" });
+    }
+
+    const patientId = users[0].id;
+
+    // 🔥 Insert with patientId
     const sql = `
-      INSERT INTO appointments (doctorId, patientName, patientEmail)
-      VALUES (?, ?, ?)
+      INSERT INTO appointments (doctorId, patientId, patientName, patientEmail)
+      VALUES (?, ?, ?, ?)
     `;
 
-    await db.query(sql, [doctorId, patientName, patientEmail]);
+    await db.query(sql, [doctorId, patientId, patientName, patientEmail]);
 
     res.json({ message: "Appointment request sent" });
+
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Server error" });
+    console.error("SendRequest Error:", err);
+    res.status(500).json({ error: "Server error", message: err.message });
   }
 };
 
@@ -29,9 +47,10 @@ exports.getAllRequests = async (req, res) => {
       ORDER BY a.id DESC
     `);
 
-    res.json(rows);
-  } catch {
-    res.status(500).json({ error: "Server error" });
+    res.json(rows || []);
+  } catch (err) {
+    console.error("GetAllRequests Error:", err);
+    res.status(500).json({ error: "Server error", message: err.message });
   }
 };
 
@@ -40,14 +59,19 @@ exports.getDoctorRequests = async (req, res) => {
   try {
     const { doctorId } = req.params;
 
+    if (!doctorId) {
+      return res.status(400).json({ error: "doctorId is required" });
+    }
+
     const [rows] = await db.query(
       "SELECT * FROM appointments WHERE doctorId = ? ORDER BY id DESC",
       [doctorId]
     );
 
-    res.json(rows);
-  } catch {
-    res.status(500).json({ error: "Server error" });
+    res.json(rows || []);
+  } catch (err) {
+    console.error("GetDoctorRequests Error:", err);
+    res.status(500).json({ error: "Server error", message: err.message });
   }
 };
 
@@ -57,63 +81,43 @@ exports.updateStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
+    if (!id || !status) {
+      return res.status(400).json({ error: "id and status are required" });
+    }
+
     await db.query(
       "UPDATE appointments SET status = ? WHERE id = ?",
       [status, id]
     );
 
     res.json({ message: "Status updated" });
-  } catch {
-    res.status(500).json({ error: "Server error" });
+  } catch (err) {
+    console.error("UpdateStatus Error:", err);
+    res.status(500).json({ error: "Server error", message: err.message });
   }
 };
 
-
-// GET requests by doctor
-exports.getDoctorRequests = async (req, res) => {
-  const { doctorId } = req.params;
-
-  const [rows] = await db.query(
-    "SELECT * FROM appointments WHERE doctorId=? ORDER BY id DESC",
-    [doctorId]
-  );
-
-  res.json(rows);
-};
-
-
-
-exports.updateStatus = async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-
-  await db.query(
-    "UPDATE appointments SET status=? WHERE id=?",
-    [status, id]
-  );
-
-  res.json({ message: "updated" });
-};
-
-
-
-
+// 🔵 GET MY APPOINTMENTS
 exports.getMyAppointments = async (req, res) => {
   try {
-    if (req.user.role !== "doctor") {
+    if (req.user?.role !== "doctor") {
       return res.status(403).json({ error: "Not doctor" });
     }
 
-    const doctorId = req.user.doctorId;
+    const doctorId = req.user?.doctorId;
+
+    if (!doctorId) {
+      return res.status(400).json({ error: "Doctor ID not found in token" });
+    }
 
     const [rows] = await db.query(
       "SELECT * FROM appointments WHERE doctorId=? ORDER BY id DESC",
       [doctorId]
     );
 
-    res.json(rows);
+    res.json(rows || []);
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Server error" });
+    console.error("GetMyAppointments Error:", err);
+    res.status(500).json({ error: "Server error", message: err.message });
   }
 };

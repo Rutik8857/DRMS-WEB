@@ -1,47 +1,73 @@
+// const express = require("express");
+// const router = express.Router();
+// const doctorController = require("../controllers/doctorController");
+// const { verifyToken, verifyDoctor } = require("../middleware/auth.middleware");
+// const db = require("../db");
+
+
+// // ➜ ADD DOCTOR
+// router.post("/add", doctorController.addDoctor);
+
+// // ➜ DOCTOR DASHBOARD (Protected)
+
+// // ➜ GET ALL DOCTORS
+// router.get("/", doctorController.getDoctors);
+
+// // ➜ DELETE
+// router.delete("/:id", doctorController.deleteDoctor);
+
+
+// router.get("/my-data", verifyToken, verifyDoctor, async (req, res) => {
+
+//   const doctorId = req.user.doctorId;
+
+//   try {
+//     // doctor profile
+//     const [doctor] = await db.query(
+//       "SELECT * FROM doctors WHERE id=?",
+//       [doctorId]
+//     );
+
+//     const doctorData = doctor?.[0] || null;
+//     if (!doctorData) {
+//       return res.status(404).json({ error: "Doctor profile not found" });
+//     }
+
+//     res.json({
+//       doctor: doctorData
+//     });
+
+//   } catch (err) {
+//     console.error('GetMyData error:', err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// });
+
+
+
+// module.exports = router;
+
+
+
 const express = require("express");
 const router = express.Router();
 const doctorController = require("../controllers/doctorController");
-const auth = require("../middleware/auth");
-const db = require("../db");
+const { verifyToken, verifyDoctor } = require("../middleware/auth.middleware");
 
+// Base path: /api/doctors
 
-// ➜ ADD DOCTOR
-router.post("/add", doctorController.addDoctor);
+// GET currently authenticated doctor's profile
+router.get("/my-data", verifyToken, verifyDoctor, doctorController.getDoctorProfile);
+// GET list of patients for this doctor
+router.get("/my-patients", verifyToken, verifyDoctor, doctorController.getMyPatients);
 
-// ➜ DOCTOR DASHBOARD (Protected)
-
-// ➜ GET ALL DOCTORS
+// GET all doctors
 router.get("/", doctorController.getDoctors);
 
-// ➜ DELETE
+// ADD doctor
+router.post("/", doctorController.addDoctor);
+
+// DELETE doctor
 router.delete("/:id", doctorController.deleteDoctor);
-
-
-router.get("/my-data", auth, async (req, res) => {
-
-  if (req.user.role !== "doctor") {
-    return res.status(403).json({ error: "Not doctor" });
-  }
-
-  const doctorId = req.user.doctorId;
-
-  try {
-    // doctor profile
-    const [doctor] = await db.query(
-      "SELECT * FROM doctors WHERE id=?",
-      [doctorId]
-    );
-
-    res.json({
-      doctor: doctor[0]
-    });
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-
 
 module.exports = router;

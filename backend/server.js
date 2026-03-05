@@ -1,208 +1,263 @@
-// // server.js
+// require('dotenv').config();
 // const express = require('express');
 // const cors = require('cors');
-// const bodyParser = require('body-parser');
-// require('dotenv').config();
 
-// const doctorRoutes = require('./routes/doctorRoutes');
-// const dashboardRoutes = require('./routes/dashboardRoutes');
-// const chatRoutes = require('./routes/chatRoutes');
-// const authRoutes = require('./routes/authRoutes'); // New Auth Routes
+
+// console.log("🔥 REAL BACKEND STARTED 🔥");
+
+// // Global error handlers
+// process.on('unhandledRejection', (reason, promise) => {
+//   console.error('❌ Unhandled Rejection:', reason);
+// });
+
+// process.on('uncaughtException', (error) => {
+//   console.error('❌ Uncaught Exception:', error);
+// });
 
 // const app = express();
 // const PORT = process.env.PORT || 5000;
 
-
-// const reportRoutes = require("./routes/reportRoutes");
-// const appointmentRoutes = require("./routes/appointmentRoutes");
-
-
+// app.get("/check-backend", (req, res) => {
+//   res.json({ backend: "REAL BACKEND WORKING" });
+// });
 // // Middleware
-// app.use(cors()); // Allows React to connect to this backend
-// app.use(bodyParser.json());
+// app.use(cors({
+//   origin: 'http://localhost:3000',
+//   credentials: true
+// }));
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
 
-// // Routes
-// app.use('/api/doctors', doctorRoutes);
-// app.use('/api/dashboard', dashboardRoutes);
-// app.use('/api/chat', chatRoutes);
-// app.use('/api/auth', authRoutes); // Mount Auth Routes
+// // Safely require routes
+// let routes = {};
 
-// app.use("/api", reportRoutes);
-// app.use("/api/doctors", doctorRoutes);
-// app.use("/api/appointments", appointmentRoutes);
+// try {
+//   routes.doctor = require('./routes/doctor.routes');
+// } catch (e) {
+//   console.warn('⚠️  doctor.routes:', e.message);
+// }
 
-// // 📌 GET Doctors for Map (Mock Data for Demo)
-// // app.get('/api/doctors-map', (req, res) => {
-// //     // In real app, fetch from DB: SELECT * FROM doctors
-// //     const doctors = [
-// //         { id: 1, name: "Dr. Rahul Sharma", specialization: "Cardiologist", hospital: "City Heart Center", lat: 19.0760, lng: 72.8777 }, // Mumbai
-// //         { id: 2, name: "Dr. Priya Patel", specialization: "Dermatologist", hospital: "Skin Care Clinic", lat: 19.0500, lng: 72.9000 }, // Chembur
-// //         { id: 3, name: "Dr. Amit Singh", specialization: "Neurologist", hospital: "Brain Health Inst", lat: 19.1000, lng: 72.8500 }, // Andheri
-// //         { id: 4, name: "Dr. Neha Gupta", specialization: "Cardiologist", hospital: "Life Care Hospital", lat: 19.0800, lng: 72.8800 }  // Kurla
-// //     ];
-// //     res.json(doctors);
-// // });
+// try {
+//   routes.apiDoctor = require('./routes/doctorRoutes');
+// } catch (e) {
+//   console.warn('⚠️  doctorRoutes:', e.message);
+// }
 
+// try {
+//   routes.auth = require('./routes/authRoutes');
+// } catch (e) {
+//   console.warn('⚠️  authRoutes:', e.message);
+// }
 
-// // Root Endpoint
+// try {
+//   routes.appointment = require('./routes/appointmentRoutes');
+// } catch (e) {
+//   console.warn('⚠️  appointmentRoutes:', e.message);
+// }
+
+// try {
+//   routes.schedule = require('./routes/scheduleRoutes');
+// } catch (e) {
+//   console.warn('⚠️  scheduleRoutes:', e.message);
+// }
+
+// try {
+//   routes.admin = require('./routes/admin.routes');
+// } catch (e) {
+//   console.warn('⚠️  admin.routes:', e.message);
+// }
+
+// try {
+//   routes.patient = require('./routes/patient.routes');
+// } catch (e) {
+//   console.warn('⚠️  patient.routes:', e.message);
+// }
+
+// // Mount Routes
+// if (routes.doctor) app.use('/doctor', routes.doctor);
+// if (routes.apiDoctor) app.use('/api/doctors', routes.apiDoctor);
+// if (routes.auth) app.use('/api/auth', routes.auth);
+// if (routes.appointment) app.use('/api/appointments', routes.appointment);
+// if (routes.schedule) app.use('/api/schedule', routes.schedule);
+// if (routes.admin) app.use('/admin', routes.admin);
+// if (routes.patient) app.use('/patient', routes.patient);
+
+// // Health Check
 // app.get('/', (req, res) => {
-//     res.send('HealthAI Backend is running...');
+//   res.send('API is running...');
 // });
 
-// // Start Server
-// app.listen(PORT, () => {
-//     console.log(`Server running on http://localhost:${PORT}`);
+// // 404 Handler
+// app.use((req, res) => {
+//   res.status(404).json({ message: `Cannot ${req.method} ${req.originalUrl}` });
 // });
 
-
-
-
-
-
-// const express = require('express');
-// const cors = require('cors');
-// require('dotenv').config();
-
-// const doctorRoutes = require('./routes/doctorRoutes');
-// const dashboardRoutes = require('./routes/dashboardRoutes');
-// const chatRoutes = require('./routes/chatRoutes');
-// const authRoutes = require('./routes/authRoutes');
-// const reportRoutes = require("./routes/reportRoutes");
-// const appointmentRoutes = require("./routes/appointmentRoutes");
-
-// const app = express();
-// const PORT = process.env.PORT || 5000;
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());   // 🔥 important
-
-// // Routes
-// app.use('/api/doctors', doctorRoutes);
-// app.use('/api/dashboard', dashboardRoutes);
-// app.use('/api/chat', chatRoutes);
-// app.use('/api/auth', authRoutes);
-// app.use("/api", reportRoutes);
-// app.use("/api/appointments", appointmentRoutes);
-// app.use("/api/appointments", require("./routes/appointmentRoutes"));
-
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: "*",
-//   },
+// // Error middleware
+// app.use((err, req, res, next) => {
+//   console.error('Error:', err);
+//   res.status(500).json({ message: 'Internal server error' });
 // });
-// // 🔥 SOCKET CONNECTION
-// io.on("connection", (socket) => {
-//   console.log("User connected:", socket.id);
 
-//   // join room
-//   socket.on("joinRoom", (roomId) => {
-//     socket.join(roomId);
-//   });
+// // Start server
+// const server = app.listen(PORT, () => {
+//   console.log(`✅ Server running on http://localhost:${PORT}`);
+// });
 
-//   // send message
-//   socket.on("sendMessage", (data) => {
-//     io.to(data.roomId).emit("receiveMessage", data);
-//   });
+// // Socket timeouts
+// server.keepAliveTimeout = 65000;
+// server.headersTimeout = 66000;
 
-//   socket.on("disconnect", () => {
-//     console.log("User disconnected");
+// // Graceful shutdown
+// process.on('SIGTERM', () => {
+//   console.log('Shutting down gracefully...');
+//   server.close(() => {
+//     console.log('Server closed');
+//     process.exit(0);
 //   });
 // });
 
 
 
-// // Test
-// app.get('/', (req, res) => {
-//   res.send('HealthAI Backend running');
-// });
-
-// app.listen(PORT, () => {
-//   console.log(`Server running http://localhost:${PORT}`);
-// });
-
-
-
-
-
-
-
-
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
-require("dotenv").config();
-
-const doctorRoutes = require("./routes/doctorRoutes");
-const dashboardRoutes = require("./routes/dashboardRoutes");
-const chatRoutes = require("./routes/chatRoutes");
-const authRoutes = require("./routes/authRoutes");
-const reportRoutes = require("./routes/reportRoutes");
-const appointmentRoutes = require("./routes/appointmentRoutes");
-const messageRoutes = require("./routes/messageRoutes");
-const scheduleRoutes = require("./routes/scheduleRoutes");
 
 const app = express();
+const http = require('http');
+const server = http.createServer(app);
+const io = require('socket.io')(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+  }
+});
+
+const jwt = require('jsonwebtoken');
 const PORT = process.env.PORT || 5000;
 
-// 🔥 Create HTTP server
-const server = http.createServer(app);
+console.log("🔥 REAL BACKEND STARTED 🔥");
 
-// 🔥 Create socket server
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-  },
+// Global error handlers
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("❌ Uncaught Exception:", error);
 });
 
 // Middleware
-// app.use(cors());
-
-app.use(cors({
-  origin: "http://localhost:3000",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
-}));
-
-
-
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  })
+);
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api/doctors", doctorRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/chat", chatRoutes);
+// initialize database schema (must run before routes)
+const { initialize } = require("./db/init");
+
+// run migrations asynchronously
+initialize();
+
+// ================= ROUTES =================
+
+const doctorDashboardRoutes = require("./routes/doctor.routes");
+const doctorCrudRoutes = require("./routes/doctorRoutes");
+const authRoutes = require("./routes/authRoutes");
+const appointmentRoutes = require("./routes/appointmentRoutes");
+const scheduleRoutes = require("./routes/scheduleRoutes");
+const adminRoutes = require("./routes/admin.routes");
+const patientRoutes = require("./routes/patient.routes");
+const prescriptionRoutes = require("./routes/prescriptionRoutes");
+const chatRoutes = require("./routes/chatRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+
+// Mount Routes
+
+app.use("/doctor", doctorDashboardRoutes);          // dashboard
+app.use("/api/doctors", doctorCrudRoutes);         // CRUD
 app.use("/api/auth", authRoutes);
-app.use("/api", reportRoutes);
 app.use("/api/appointments", appointmentRoutes);
-app.use("/api/messages", messageRoutes);
-
-
 app.use("/api/schedule", scheduleRoutes);
-// 🔥 SOCKET CONNECTION
-io.on("connection", (socket) => {
-  // Join specific chat room
-  socket.on("joinRoom", (roomId) => {
-    socket.join(roomId);
-  });
+app.use("/api/prescriptions", prescriptionRoutes);
+app.use("/api/chat", chatRoutes);
+// also mount with plural prefix for compatibility with frontend
+app.use("/api/chats", chatRoutes);
+app.use("/api/messages", messageRoutes);
+// app.use("/admins", adminRoutes);
+app.use("/patient", patientRoutes);
 
-  // Broadcast message to everyone in the room
-  socket.on("sendMessage", (data) => {
-    // data: { roomId, sender, message }
-    io.to(data.roomId).emit("receiveMessage", data);
-  });
-});
+app.use("/api/admins", adminRoutes);
 
-// Test route
+
+// Health check
 app.get("/", (req, res) => {
-  res.send("HealthAI Backend running");
+  res.send("API is running...");
 });
 
-// ❗ IMPORTANT: use server.listen NOT app.listen
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({
+    message: `Cannot ${req.method} ${req.originalUrl}`,
+  });
+});
+
+// Error middleware
+app.use((err, req, res, next) => {
+  console.error("Server Error:", err);
+  res.status(500).json({
+    message: "Internal server error",
+  });
+});
+
+// ================= SOCKET.IO CONFIGURATION =================
+
+// middleware to authenticate socket connections
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (!token) return next(new Error('Authentication error'));
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+    socket.user = decoded; // { id, role, doctorId }
+    return next();
+  } catch (err) {
+    return next(new Error('Authentication error'));
+  }
+});
+
+io.on('connection', (socket) => {
+  // room join
+  socket.on('joinRoom', (roomId) => {
+    // validate that the user belongs to this room
+    const parts = roomId.split('_');
+    if (parts.length !== 3) return;
+    const idA = parseInt(parts[1]);
+    const idB = parseInt(parts[2]);
+    const user = socket.user;
+    if (!user) return;
+    // determine if one of the ids matches user
+    if (user.role === 'doctor' && user.doctorId && [idA, idB].includes(user.doctorId)) {
+      socket.join(roomId);
+    } else if (user.role === 'patient' && user.id && [idA, idB].includes(user.id)) {
+      socket.join(roomId);
+    } else {
+      // unauthorized attempt to join another room
+    }
+  });
+
+  socket.on('sendMessage', (data) => {
+    // broadcast to everyone in room
+    if (data?.roomId) {
+      io.to(data.roomId).emit('receiveMessage', data);
+    }
+  });
+});
+
+// Start server (http) so socket.io works
 server.listen(PORT, () => {
-  console.log(`Server running http://localhost:${PORT}`);
+  console.log(`✅ Server running on http://localhost:${PORT}`);
 });

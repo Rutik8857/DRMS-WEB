@@ -18,7 +18,7 @@ const Navbar: React.FC<NavbarProps> = ({ setPage, activePage }) => {
     { id: 'report', label: 'My Report' },
     { id: 'scan', label: 'Scanner' },
     { id: 'doctors', label: 'Find Doctors' },
-    { id: 'dashboard', label: 'Admin' },
+    // { id: 'dashboard', label: 'Admin' },
     
   ];
 

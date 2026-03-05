@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Login() {
   const router = useRouter();
@@ -44,8 +45,10 @@ localStorage.setItem("token", data.token);
 localStorage.setItem("role", data.role);
 localStorage.setItem("user", JSON.stringify(data.user));
 
-if( data.role.toLowerCase().trim() === "doctor") {
-  localStorage.setItem("doctorId", data.user._id);
+if (data.role.toLowerCase().trim() === "doctor") {
+  // the backend returns a doctor object with its own id field
+  const dId = data.doctor?.id || data.user?.id;
+  if (dId) localStorage.setItem("doctorId", String(dId));
 }
 
 // ⭐ IMPORTANT: cookie set for middleware
@@ -102,6 +105,10 @@ setTimeout(() => {
           className="w-full border p-2"
           required
         />
+
+        <div className="text-right text-sm">
+          <Link href="/forgot" className="text-blue-600 hover:underline">Forgot password?</Link>
+        </div>
 
         <button 
           disabled={loading}

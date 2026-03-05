@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import { 
   Users, 
   UserPlus, 
@@ -8,7 +9,8 @@ import {
   TrendingUp, 
   TrendingDown,
   ArrowUpRight,
-  Filter
+  Filter,
+  AlertCircle
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -56,42 +58,22 @@ const REVENUE_DATA = {
   ],
 };
 
-const STATS_CARDS = [
-  {
-    title: "Total Appointments",
-    value: "1,284",
-    trend: "+12.5%",
-    trendType: "up",
-    icon: CalendarCheck,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    href: "/admin/appointments"
-  },
-  {
-    title: "Total Doctors",
-    value: "84",
-    trend: "+3 this week",
-    trendType: "up",
-    icon: UserPlus,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    href: "/admin/doctors"
-  },
-  {
-    title: "Total Users",
-    value: "12,402",
-    trend: "-2.1%",
-    trendType: "down",
-    icon: Users,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-    href: "/admin/users"
-  }
-];
+interface StatCardData {
+  title: string;
+  value: string | number;
+  trend: string;
+  trendType: "up" | "down";
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  bg: string;
+  href: string;
+}
+
+const API_BASE_URL = "http://localhost:5000";
 
 // --- Sub-components ---
 
-const StatCard = ({ card }: { card: typeof STATS_CARDS[0] }) => {
+const StatCard = ({ card }: { card: StatCardData }) => {
   const Icon = card.icon;
   return (
     <Link href={card.href} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -115,10 +97,119 @@ const StatCard = ({ card }: { card: typeof STATS_CARDS[0] }) => {
   );
 };
 
+const LoadingSkeleton = () => (
+  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm animate-pulse">
+    <div className="h-12 w-12 bg-slate-200 rounded-xl mb-4"></div>
+    <div className="h-4 w-20 bg-slate-200 rounded mb-2"></div>
+    <div className="h-8 w-12 bg-slate-200 rounded"></div>
+  </div>
+);
+
 // --- Main Dashboard Page ---
 
 export default function Dashboard() {
   const [filter, setFilter] = useState<keyof typeof REVENUE_DATA>("30days");
+  const [stats, setStats] = useState({
+    appointments: 0,
+    doctors: 0,
+    users: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch stats from backend APIs
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Get JWT token from localStorage
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+        const headers = {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+
+        // Fetch doctors count
+        const doctorsResponse = await axios.get(
+          `${API_BASE_URL}/api/doctors`,
+          { headers }
+        );
+        const doctorsCount = Array.isArray(doctorsResponse.data) 
+          ? doctorsResponse.data.length 
+          : doctorsResponse.data?.length || 0;
+
+        // Fetch appointments count
+        const appointmentsResponse = await axios.get(
+          `${API_BASE_URL}/api/appointments`,
+          { headers }
+        );
+        const appointmentsCount = Array.isArray(appointmentsResponse.data) 
+          ? appointmentsResponse.data.length 
+          : appointmentsResponse.data?.length || 0;
+
+        // Fetch users count - using the admin endpoint pattern
+        const usersResponse = await axios.get(
+          `${API_BASE_URL}/api/admins`,
+          { headers }
+        );
+        const usersCount = usersResponse.data?.count || 0;
+
+        setStats({
+          appointments: appointmentsCount,
+          doctors: doctorsCount,
+          users: usersCount,
+        });
+      } catch (err) {
+        console.error("Error fetching dashboard stats:", err);
+        setError(
+          err instanceof Error 
+            ? err.message 
+            : "Failed to fetch dashboard statistics"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // Build dynamic stat cards with fetched data
+  const STATS_CARDS: StatCardData[] = [
+    {
+      title: "Total Appointments",
+      value: loading ? "-" : stats.appointments.toLocaleString(),
+      trend: "+12.5%",
+      trendType: "up",
+      icon: CalendarCheck,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      href: "/admin/appointments"
+    },
+    {
+      title: "Total Doctors",
+      value: loading ? "-" : stats.doctors.toLocaleString(),
+      trend: "+3 this week",
+      trendType: "up",
+      icon: UserPlus,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+      href: "/admin/doctors"
+    },
+    {
+      title: "Total Users",
+      value: loading ? "-" : stats.users.toLocaleString(),
+      trend: "-2.1%",
+      trendType: "down",
+      icon: Users,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50",
+      href: "/admin/users"
+    }
+  ];
 
   const activeData = useMemo(() => REVENUE_DATA[filter], [filter]);
 
@@ -137,11 +228,33 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-red-900">Failed to Load Statistics</h3>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+            <p className="text-xs text-red-600 mt-2">
+              Make sure the backend API is running at {API_BASE_URL}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1️⃣ Top Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {STATS_CARDS.map((card, idx) => (
-          <StatCard key={idx} card={card} />
-        ))}
+        {loading ? (
+          <>
+            <LoadingSkeleton />
+            <LoadingSkeleton />
+            <LoadingSkeleton />
+          </>
+        ) : (
+          STATS_CARDS.map((card, idx) => (
+            <StatCard key={idx} card={card} />
+          ))
+        )}
       </div>
 
       {/* 2️⃣ & 3️⃣ Revenue Graph & Filter Section */}

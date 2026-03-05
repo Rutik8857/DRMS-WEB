@@ -2,16 +2,26 @@ const db = require("../db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-
 // ================= SIGNUP =================
 exports.signup = async (req, res) => {
   try {
     console.log("🔹 SIGNUP REQUEST:", req.body);
 
-    const { name, email, password, role, specialization, location, age, gender } = req.body;
+    const {
+      name,
+      email,
+      password,
+      role,
+      specialization,
+      location,
+      age,
+      gender,
+    } = req.body;
 
     if (!email || !password || !role) {
-      return res.status(400).json({ error: "Missing required fields (email, password, role)" });
+      return res
+        .status(400)
+        .json({ error: "Missing required fields (email, password, role)" });
     }
 
     // Normalize inputs (trim whitespace, lowercase email/role)
@@ -19,48 +29,73 @@ exports.signup = async (req, res) => {
     const cleanRole = role.trim().toLowerCase();
 
     // Check if user already exists
-    const [existing] = await db.query("SELECT * FROM users WHERE email = ?", [cleanEmail]);
-    if (existing.length > 0) {
+    let existing = [];
+    try {
+      const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
+        cleanEmail,
+      ]);
+      existing = rows || [];
+    } catch (e) {
+      console.warn("User existence check failed:", e.message);
+    }
+
+    if (existing && existing.length > 0) {
       return res.status(400).json({ error: "Email already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // users table insert
-    const [result] = await db.query(
-      "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
-      [name, cleanEmail, hashedPassword, cleanRole]
-    );
+    let result = {};
+    try {
+      const [res_result] = await db.query(
+        "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
+        [name, cleanEmail, hashedPassword, cleanRole],
+      );
+      result = res_result || {};
+    } catch (e) {
+      console.error("User creation failed:", e.message);
+      return res.status(500).json({ error: "Failed to create user" });
+    }
 
-    const userId = result.insertId;
+    const userId = result?.insertId;
+    if (!userId) {
+      return res.status(500).json({ error: "Failed to create user account" });
+    }
     console.log(`✅ User created: ID=${userId}, Role=${cleanRole}`);
 
     // doctor insert
     if (cleanRole === "doctor") {
-      await db.query(
-        "INSERT INTO doctors (user_id, specialization, location) VALUES (?, ?, ?)",
-        [userId, specialization || null, location || null]
-      );
-      console.log("✅ Doctor profile added to 'doctors' table");
+      try {
+        await db.query(
+          "INSERT INTO doctors (user_id, specialization, location) VALUES (?, ?, ?)",
+          [userId, specialization || null, location || null],
+        );
+        console.log("✅ Doctor profile added to 'doctors' table");
+      } catch (e) {
+        console.warn("Doctor profile creation failed:", e.message);
+      }
     }
 
     // patient insert
     if (cleanRole === "patient") {
-      await db.query(
-        "INSERT INTO patients (user_id, age, gender) VALUES (?, ?, ?)",
-        [userId, age || null, gender || null]
-      );
-      console.log("✅ Patient profile added to 'patients' table");
+      try {
+        await db.query(
+          "INSERT INTO patients (user_id, age, gender) VALUES (?, ?, ?)",
+          [userId, age || null, gender || null],
+        );
+        console.log("✅ Patient profile added to 'patients' table");
+      } catch (e) {
+        console.warn("Patient profile creation failed:", e.message);
+      }
     }
 
     res.json({ message: "Signup successful" });
-
   } catch (err) {
     console.error("❌ SIGNUP ERROR:", err);
-    res.status(500).json({ error: "Signup failed" });
+    res.status(500).json({ error: "Signup failed", details: err.message });
   }
 };
-
 
 // ================= LOGIN =================
 // exports.login = async (req, res) => {
@@ -143,9 +178,6 @@ exports.signup = async (req, res) => {
 //     res.status(500).json({ error: "Login failed" });
 //   }
 // };
-
-
-
 
 // exports.login = async (req, res) => {
 //   try {
@@ -251,29 +283,50 @@ exports.signup = async (req, res) => {
 //   }
 // };
 
-
-
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
+
     const cleanEmail = email.trim().toLowerCase();
 
     // users table check
-    const [rows] = await db.query(
-      "SELECT * FROM users WHERE email=?",
-      [cleanEmail]
-    );
+    let rows = [];
+    try {
+      const [result] = await db.query("SELECT * FROM users WHERE email=?", [
+        cleanEmail,
+      ]);
+      rows = result || [];
+    } catch (e) {
+      console.error("User lookup failed:", e.message);
+      return res
+        .status(500)
+        .json({ error: "Login failed", details: e.message });
+    }
 
-    if (rows.length === 0) {
+    if (!rows || rows.length === 0) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const user = rows[0];
-    const role = user.role.toLowerCase();
+    const role = user?.role?.toLowerCase();
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) {
+    if (!role) {
+      return res.status(500).json({ error: "Invalid user role" });
+    }
+
+    let passwordMatch = false;
+    try {
+      passwordMatch = await bcrypt.compare(password, user.password);
+    } catch (e) {
+      console.error("Password comparison failed:", e.message);
+      return res.status(500).json({ error: "Authentication failed" });
+    }
+
+    if (!passwordMatch) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -281,38 +334,142 @@ exports.login = async (req, res) => {
 
     // ================= DOCTOR =================
     if (role === "doctor") {
-      const [doc] = await db.query(
-        "SELECT * FROM doctors WHERE user_id=?",
-        [user.id]
-      );
+      try {
+        const [doc] = await db.query("SELECT * FROM doctors WHERE user_id=?", [
+          user.id,
+        ]);
 
-      if (doc.length === 0) {
-        return res.status(403).json({ error: "Doctor profile missing" });
+        if (!doc || doc.length === 0) {
+          return res.status(403).json({ error: "Doctor profile missing" });
+        }
+
+        doctorProfile = doc[0];
+      } catch (e) {
+        console.warn("Doctor profile lookup failed:", e.message);
       }
-
-      doctorProfile = doc[0];
     }
 
     // ================= TOKEN =================
     const token = jwt.sign(
       {
-        id: user.id,        // user id
+        id: user.id,
         role: role,
-        doctorId: doctorProfile ? doctorProfile.id : null
+        doctorId: doctorProfile ? doctorProfile.id : null,
       },
-      "secretkey",
-      { expiresIn: "1d" }
+      process.env.JWT_SECRET || "secretkey",
+      { expiresIn: "1d" },
     );
 
     res.json({
       token,
       role,
-      user,
-      doctor: doctorProfile
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: role,
+      },
+      doctor: doctorProfile,
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login failed", details: err.message });
+  }
+};
+
+// ------------------- FORGOT / RESET PASSWORD -------------------
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+
+    const cleanEmail = email.trim().toLowerCase();
+    const [rows] = await db.query("SELECT id FROM users WHERE email=?", [
+      cleanEmail,
+    ]);
+    if (!rows || rows.length === 0) {
+      // don't reveal that email doesn't exist
+      return res.json({
+        message:
+          "If that email is registered, you will receive a reset link shortly",
+      });
+    }
+    const userId = rows[0].id;
+
+    const crypto = require("crypto");
+    const token = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
+
+    await db.query(
+      "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+      [userId, hashedToken, expires],
+    );
+
+    // send email
+    const nodemailer = require("nodemailer");
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT),
+      secure: process.env.EMAIL_SECURE === "true",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
     });
 
+const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset/${token}`;    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || "no-reply@healthai.com",
+      to: cleanEmail,
+      subject: "Password Reset Request",
+      html: `<p>You requested a password reset. Click <a href="${resetLink}">here</a> to set a new password. This link expires in 30 minutes.</p>`,
+    });
+
+    res.json({ message: "Reset link sent if email exists" });
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ error: "Login failed" });
+    console.error("ForgotPassword Error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password)
+      return res.status(400).json({ message: "Token and password required" });
+
+    const crypto = require("crypto");
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const [rows] = await db.query(
+      "SELECT * FROM password_resets WHERE token=? AND used=0",
+      [hashedToken],
+    );
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    const record = rows[0];
+    const now = new Date();
+    if (now > new Date(record.expires_at)) {
+      return res.status(400).json({ message: "Token expired" });
+    }
+
+    // update password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await db.query("UPDATE users SET password=? WHERE id=?", [
+      hashedPassword,
+      record.user_id,
+    ]);
+
+    // mark token used
+    await db.query("UPDATE password_resets SET used=1 WHERE id=?", [record.id]);
+
+    res.json({ message: "Password reset successful" });
+  } catch (err) {
+    console.error("ResetPassword Error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
