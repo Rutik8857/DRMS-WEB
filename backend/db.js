@@ -38,18 +38,18 @@ let pool = null;
 let poolConnected = false;
 
 // sanitize host value: avoid proxy addresses leaking into DB config
-function resolveHost(raw) {
-  if (!raw) return 'localhost';
-  // if looks like a proxy / invalid host, fallback
-  if (raw.includes('proxy') || raw.includes('http') || raw.match(/\s/)) {
-    console.warn(`Ignoring suspicious DB_HOST value: ${raw}, using localhost instead`);
-    return 'localhost';
-  }
-  return raw;
-}
+// function resolveHost(raw) {
+//   if (!raw) return 'localhost';
+//   // if looks like a proxy / invalid host, fallback
+//   if (raw.includes('proxy') || raw.includes('http') || raw.match(/\s/)) {
+//     // console.warn(`Ignoring suspicious DB_HOST value: ${raw}, using localhost instead`);
+//     return 'localhost';
+//   }
+//   return raw;
+// }
 
 try {
-  const host = resolveHost(process.env.DB_HOST);
+  const host = process.env.DB_HOST;
   pool = mysql.createPool({
     host,
     user: process.env.DB_USER || 'root',
